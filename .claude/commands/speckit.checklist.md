@@ -1,5 +1,5 @@
 ---
-description: Generate a custom checklist for the current feature based on user requirements.
+description: Generate a custom checklist for the current feature based on user requirements. (project)
 ---
 
 ## Checklist Purpose: "Unit Tests for English"
@@ -31,9 +31,14 @@ $ARGUMENTS
 
 You **MUST** consider the user input before proceeding (if not empty).
 
+**Argument Parsing:**
+- `--feature <name>`: Specify feature/meta-spec name directly (allows running from main branch)
+- `--sub-spec <id>`: Generate checklist for a specific sub-spec (requires --feature)
+- No arguments: Use branch-based detection (original behavior)
+
 ## Execution Steps
 
-1. **Setup**: Run `.specify/scripts/bash/check-prerequisites.sh --json` from repo root and parse JSON for FEATURE_DIR and AVAILABLE_DOCS list.
+1. **Setup**: Run `.specify/scripts/bash/check-prerequisites.sh --json` from repo root, adding `--feature <name>` and/or `--sub-spec <id>` flags if provided in arguments. Parse JSON for FEATURE_DIR and AVAILABLE_DOCS list.
    - All file paths must be absolute.
    - For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
 
