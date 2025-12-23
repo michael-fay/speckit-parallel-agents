@@ -189,7 +189,7 @@ git branch "$BRANCH_NAME" main
 .specify/scripts/bash/worktree-create.sh "$BRANCH_NAME"
 
 # Update manifest with worktree path
-.specify/scripts/bash/manifest.sh update-worktree "$FEATURE_DIR" "001-parser" "../iris-ornament-worktrees/$BRANCH_NAME"
+.specify/scripts/bash/manifest.sh update-worktree "$FEATURE_DIR" "001-parser" "../<project>-worktrees/$BRANCH_NAME"
 ```
 
 ### 8. Report Results
@@ -203,32 +203,32 @@ Display:
 ```markdown
 ## Breakdown Complete
 
-**Meta-Spec**: 001-html-renderer
+**Meta-Spec**: 001-feature
 **Sub-Specs Created**: 4
 
 ### Dependency Graph
 ```
 001-parser (foundation)
-├── 002-native-adapter ─┐
-└── 003-web-adapter ────┴── 004-core-component
+├── 002-adapter-a ─┐
+└── 003-adapter-b ─┴── 004-integration
 ```
 
 ### Parallelization
 - **Phase 1**: 001-parser (sequential, foundation)
-- **Phase 2**: 002-native-adapter, 003-web-adapter (parallel)
-- **Phase 3**: 004-core-component (sequential, integration)
+- **Phase 2**: 002-adapter-a, 003-adapter-b (parallel)
+- **Phase 3**: 004-integration (sequential, integration)
 
 ### Worktrees Created
-- `iris-ornament-worktrees/001-html-renderer-001-parser`
-- `iris-ornament-worktrees/001-html-renderer-002-native-adapter`
-- `iris-ornament-worktrees/001-html-renderer-003-web-adapter`
-- `iris-ornament-worktrees/001-html-renderer-004-core-component`
+- `<project>-worktrees/001-feature-001-parser`
+- `<project>-worktrees/001-feature-002-adapter-a`
+- `<project>-worktrees/001-feature-003-adapter-b`
+- `<project>-worktrees/001-feature-004-integration`
 
 ### Next Steps
 1. Run `/speckit.specify-all` to specify all sub-specs in parallel
 2. Or run `/speckit.specify-next` to specify one at a time
 
-**Manifest**: `specs/001-html-renderer/manifest.json`
+**Manifest**: `specs/001-feature/manifest.json`
 ```
 
 ## Guidelines
@@ -243,7 +243,7 @@ Display:
 ### Naming Conventions
 
 - Sub-spec IDs: `NNN-short-name` (e.g., `001-parser`, `002-native-adapter`)
-- Branch names: `<meta-spec-id>-<sub-spec-id>` (e.g., `001-html-renderer-001-parser`)
+- Branch names: `<meta-spec-id>-<sub-spec-id>` (e.g., `001-feature-001-parser`)
 - Directories: Match sub-spec ID exactly
 
 ### Dependency Rules

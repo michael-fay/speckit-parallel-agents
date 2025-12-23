@@ -169,7 +169,7 @@ check_dir() { [[ -d "$1" && -n $(ls -A "$1" 2>/dev/null) ]] && echo "  ✓ $2" |
 # ============================================================================
 
 # Check if a branch name matches the sub-spec pattern
-# Sub-spec pattern: ###-meta-name-###-sub-name (e.g., 001-html-renderer-001-parser)
+# Sub-spec pattern: ###-meta-name-###-sub-name (e.g., 001-feature-001-parser)
 is_sub_spec_branch() {
     local branch="$1"
     # Pattern: ###-word(s)-###-word(s)
@@ -181,8 +181,8 @@ is_sub_spec_branch() {
 }
 
 # Extract meta-spec ID from a sub-spec branch name
-# Input: 001-html-renderer-001-parser
-# Output: 001-html-renderer
+# Input: 001-feature-001-parser
+# Output: 001-feature
 get_meta_spec_id_from_branch() {
     local branch="$1"
     if [[ "$branch" =~ ^([0-9]{3}-[a-z0-9-]+)-[0-9]{3}-[a-z0-9-]+$ ]]; then
@@ -193,7 +193,7 @@ get_meta_spec_id_from_branch() {
 }
 
 # Extract sub-spec ID from a sub-spec branch name
-# Input: 001-html-renderer-001-parser
+# Input: 001-feature-001-parser
 # Output: 001-parser
 get_sub_spec_id_from_branch() {
     local branch="$1"
@@ -326,6 +326,90 @@ USER_STORY='$feature_dir/user-story.md'
 MANIFEST='$feature_dir/manifest.json'
 BREAKDOWN='$feature_dir/breakdown.md'
 EOF
+    fi
+}
+
+# ============================================================================
+# Worktree Sync Checking
+# ============================================================================
+
+# Check if a worktree is behind the meta-spec branch
+# Usage: check_worktree_sync <meta_spec_branch>
+# Returns: 0 if in sync, 1 if behind (with error message)
+check_worktree_sync() {
+    local meta_spec_branch="$1"
+
+    if ! has_git; then
+        return 0  # Can't check without git
+    fi
+
+    local current_branch=$(git rev-parse --abbrev-ref HEAD)
+
+    # Only check if we're on a sub-spec branch
+    if ! is_sub_spec_branch "$current_branch"; then
+        return 0
+    fi
+
+    # Get commits
+    local worktree_commit=$(git rev-parse HEAD)
+    local meta_commit=$(git rev-parse "$meta_spec_branch" 2>/dev/null)
+
+    if [[ -z "$meta_commit" ]]; then
+        echo "Warning: Could not find meta-spec branch '$meta_spec_branch'" >&2
+        return 0
+    fi
+
+    # Check if worktree commit is ancestor of meta-spec (i.e., worktree is behind)
+    if git merge-base --is-ancestor "$worktree_commit" "$meta_commit" && \
+       [[ "$worktree_commit" != "$meta_commit" ]]; then
+        # Worktree is behind - count commits
+        local behind_count=$(git rev-list --count "$worktree_commit".."$meta_commit")
+        return 1
+    fi
+
+    return 0
+}
+
+# Get sync status details
+# Usage: get_worktree_sync_status <meta_spec_branch>
+# Returns: JSON with sync details
+get_worktree_sync_status() {
+    local meta_spec_branch="$1"
+
+    if ! has_git; then
+        echo '{"synced": true, "reason": "no_git"}'
+        return
+    fi
+
+    local current_branch=$(git rev-parse --abbrev-ref HEAD)
+    local worktree_commit=$(git rev-parse --short HEAD)
+    local meta_commit=$(git rev-parse --short "$meta_spec_branch" 2>/dev/null || echo "unknown")
+
+    if ! is_sub_spec_branch "$current_branch"; then
+        echo '{"synced": true, "reason": "not_sub_spec"}'
+        return
+    fi
+
+    local full_worktree=$(git rev-parse HEAD)
+    local full_meta=$(git rev-parse "$meta_spec_branch" 2>/dev/null)
+
+    if [[ -z "$full_meta" ]]; then
+        echo "{\"synced\": false, \"reason\": \"meta_branch_not_found\", \"meta_branch\": \"$meta_spec_branch\"}"
+        return
+    fi
+
+    if [[ "$full_worktree" == "$full_meta" ]]; then
+        echo '{"synced": true, "reason": "same_commit"}'
+        return
+    fi
+
+    if git merge-base --is-ancestor "$full_worktree" "$full_meta"; then
+        local behind_count=$(git rev-list --count "$full_worktree".."$full_meta")
+        echo "{\"synced\": false, \"reason\": \"behind\", \"behind_count\": $behind_count, \"worktree_commit\": \"$worktree_commit\", \"meta_commit\": \"$meta_commit\", \"meta_branch\": \"$meta_spec_branch\"}"
+    else
+        # Worktree has diverged (has commits not in meta-spec)
+        local ahead_count=$(git rev-list --count "$full_meta".."$full_worktree")
+        echo "{\"synced\": false, \"reason\": \"diverged\", \"ahead_count\": $ahead_count, \"worktree_commit\": \"$worktree_commit\", \"meta_commit\": \"$meta_commit\", \"meta_branch\": \"$meta_spec_branch\"}"
     fi
 }
 

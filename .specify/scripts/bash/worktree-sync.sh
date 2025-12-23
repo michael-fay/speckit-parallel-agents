@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
-# worktree-sync.sh - Sync all worktrees with latest changes from main
+# worktree-sync.sh - Sync all worktrees with latest changes from a target branch
 #
-# Usage: worktree-sync.sh [--rebase|--merge]
+# Usage: worktree-sync.sh [--rebase|--merge] [--branch <branch>] [--meta-spec <dir>]
 
 set -e
 
@@ -11,6 +11,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
 SYNC_METHOD="rebase"
+TARGET_BRANCH=""
+META_SPEC_DIR=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -22,20 +24,34 @@ while [[ $# -gt 0 ]]; do
             SYNC_METHOD="merge"
             shift
             ;;
+        --branch)
+            TARGET_BRANCH="$2"
+            shift 2
+            ;;
+        --meta-spec)
+            META_SPEC_DIR="$2"
+            shift 2
+            ;;
         --help|-h)
-            echo "Usage: $0 [--rebase|--merge]"
+            echo "Usage: $0 [--rebase|--merge] [--branch <branch>] [--meta-spec <dir>]"
             echo ""
-            echo "Sync all worktrees with latest changes from main branch."
+            echo "Sync all worktrees with latest changes from a target branch."
             echo ""
             echo "Options:"
-            echo "  --rebase     Rebase worktree branches on main (default)"
-            echo "  --merge      Merge main into worktree branches"
-            echo "  --help, -h   Show this help message"
+            echo "  --rebase           Rebase worktree branches (default)"
+            echo "  --merge            Merge into worktree branches"
+            echo "  --branch <branch>  Target branch to sync with (default: main, or meta-spec branch)"
+            echo "  --meta-spec <dir>  Meta-spec directory (auto-detects target branch from manifest)"
+            echo "  --help, -h         Show this help message"
             echo ""
             echo "This script will:"
             echo "  1. Fetch latest from origin"
-            echo "  2. Update main branch"
+            echo "  2. Update target branch"
             echo "  3. Rebase/merge each worktree branch"
+            echo ""
+            echo "Examples:"
+            echo "  $0 --branch 001-feature           # Sync with meta-spec branch"
+            echo "  $0 --meta-spec specs/001-feature  # Auto-detect from manifest"
             exit 0
             ;;
         *)
@@ -49,27 +65,36 @@ done
 REPO_ROOT=$(get_repo_root)
 cd "$REPO_ROOT"
 
-echo "Syncing all worktrees with main..."
+# Determine target branch
+if [[ -n "$META_SPEC_DIR" ]]; then
+    # Extract meta-spec ID from directory path
+    META_SPEC_ID=$(basename "$META_SPEC_DIR")
+    TARGET_BRANCH="$META_SPEC_ID"
+    echo "Auto-detected meta-spec branch: $TARGET_BRANCH"
+elif [[ -z "$TARGET_BRANCH" ]]; then
+    # Default to main if no branch specified
+    TARGET_BRANCH="main"
+fi
+
+echo "Syncing all worktrees with '$TARGET_BRANCH'..."
 echo "Method: $SYNC_METHOD"
 echo ""
 
 # Fetch latest from origin
 echo "Fetching from origin..."
-git fetch origin
+git fetch origin 2>/dev/null || true
 
 # Get main worktree path
 MAIN_PATH=$(git worktree list --porcelain | head -1 | sed 's/worktree //')
 
-# Update main branch in main worktree
+# Update target branch if we're on it
 echo ""
-echo "Updating main branch..."
+echo "Checking target branch '$TARGET_BRANCH'..."
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 
-if [[ "$CURRENT_BRANCH" == "main" ]]; then
-    git pull origin main
-else
-    # We're not on main, just fetch
-    git fetch origin main:main 2>/dev/null || true
+if [[ "$CURRENT_BRANCH" == "$TARGET_BRANCH" ]]; then
+    echo "Currently on target branch, pulling latest..."
+    git pull origin "$TARGET_BRANCH" 2>/dev/null || true
 fi
 
 # Sync each worktree
@@ -89,6 +114,14 @@ git worktree list | while IFS= read -r line; do
         continue
     fi
 
+    # When syncing a meta-spec, only sync worktrees that are sub-specs of it
+    if [[ -n "$META_SPEC_DIR" ]]; then
+        # Check if this branch starts with the meta-spec ID
+        if [[ ! "$branch" =~ ^${TARGET_BRANCH}- ]]; then
+            continue
+        fi
+    fi
+
     echo "Syncing: $branch"
     echo "  Path: $path"
 
@@ -104,7 +137,7 @@ git worktree list | while IFS= read -r line; do
 
     # Perform sync
     if [[ "$SYNC_METHOD" == "rebase" ]]; then
-        if git rebase main 2>/dev/null; then
+        if git rebase "$TARGET_BRANCH" 2>/dev/null; then
             echo "  Status: Rebased successfully"
             SYNC_SUCCESS=$((SYNC_SUCCESS + 1))
         else
@@ -113,7 +146,7 @@ git worktree list | while IFS= read -r line; do
             SYNC_FAILED=$((SYNC_FAILED + 1))
         fi
     else
-        if git merge main --no-edit 2>/dev/null; then
+        if git merge "$TARGET_BRANCH" --no-edit 2>/dev/null; then
             echo "  Status: Merged successfully"
             SYNC_SUCCESS=$((SYNC_SUCCESS + 1))
         else

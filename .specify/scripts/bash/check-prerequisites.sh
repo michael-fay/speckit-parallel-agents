@@ -96,10 +96,10 @@ EXAMPLES:
   ./check-prerequisites.sh --paths-only
 
   # Work with a meta-spec from main branch
-  ./check-prerequisites.sh --feature 001-html-renderer --json
+  ./check-prerequisites.sh --feature 001-feature --json
 
   # Work with a specific sub-spec within a meta-spec
-  ./check-prerequisites.sh --feature 001-html-renderer --sub-spec 001-parser --json
+  ./check-prerequisites.sh --feature 001-feature --sub-spec 001-parser --json
 
 EOF
             exit 0
@@ -211,6 +211,40 @@ fi
 # Validate branch only if not using explicit feature specification
 if [[ "$SKIP_BRANCH_CHECK" != "true" ]]; then
     check_feature_branch "$CURRENT_BRANCH" "$HAS_GIT" || exit 1
+fi
+
+# Check worktree sync status for sub-spec branches
+if [[ "$IS_SUB_SPEC" == "true" ]] && [[ "$HAS_GIT" == "true" ]]; then
+    # Get the meta-spec branch name from the current branch
+    META_SPEC_BRANCH=$(get_meta_spec_id_from_branch "$CURRENT_BRANCH")
+
+    if [[ -n "$META_SPEC_BRANCH" ]]; then
+        SYNC_STATUS=$(get_worktree_sync_status "$META_SPEC_BRANCH")
+        SYNC_REASON=$(echo "$SYNC_STATUS" | python3 -c "import sys,json; print(json.load(sys.stdin).get('reason',''))" 2>/dev/null || echo "")
+
+        if [[ "$SYNC_REASON" == "behind" ]]; then
+            BEHIND_COUNT=$(echo "$SYNC_STATUS" | python3 -c "import sys,json; print(json.load(sys.stdin).get('behind_count',0))" 2>/dev/null || echo "0")
+            META_COMMIT=$(echo "$SYNC_STATUS" | python3 -c "import sys,json; print(json.load(sys.stdin).get('meta_commit',''))" 2>/dev/null || echo "")
+            WORKTREE_COMMIT=$(echo "$SYNC_STATUS" | python3 -c "import sys,json; print(json.load(sys.stdin).get('worktree_commit',''))" 2>/dev/null || echo "")
+
+            echo "ERROR: Worktree is $BEHIND_COUNT commit(s) behind meta-spec branch '$META_SPEC_BRANCH'" >&2
+            echo "" >&2
+            echo "  Worktree:  $WORKTREE_COMMIT (current)" >&2
+            echo "  Meta-spec: $META_COMMIT ($META_SPEC_BRANCH)" >&2
+            echo "" >&2
+            echo "The spec/plan/tasks files were updated on the meta-spec branch but not synced to this worktree." >&2
+            echo "" >&2
+            echo "To sync this worktree, run:" >&2
+            echo "  git rebase $META_SPEC_BRANCH" >&2
+            echo "" >&2
+            echo "Or if you have uncommitted work:" >&2
+            echo "  git stash && git rebase $META_SPEC_BRANCH && git stash pop" >&2
+            exit 1
+        elif [[ "$SYNC_REASON" == "diverged" ]]; then
+            AHEAD_COUNT=$(echo "$SYNC_STATUS" | python3 -c "import sys,json; print(json.load(sys.stdin).get('ahead_count',0))" 2>/dev/null || echo "0")
+            echo "Note: Worktree has $AHEAD_COUNT commit(s) ahead of meta-spec (implementation in progress)" >&2
+        fi
+    fi
 fi
 
 # If paths-only mode, output paths and exit (support JSON + paths-only combined)

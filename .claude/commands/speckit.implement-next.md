@@ -52,35 +52,83 @@ The `get-next implement` query checks:
 - Tasks phase is complete
 - All dependencies have `implement: complete`
 
-### 4. Handle Blocked State
+### 4. Handle Empty/Blocked State
 
-If NEXT_ID is empty but not all implementations are complete:
+**Check all possible states when NEXT_ID is empty:**
 
+```bash
+# Get counts of sub-specs in each state
+READY_COUNT=$(.specify/scripts/bash/manifest.sh get-ready "$META_SPEC_DIR" "implement" | jq 'length')
+IN_PROGRESS=$(cat "$META_SPEC_DIR/manifest.json" | jq '[.subSpecs[] | select(.phases.implement == "in-progress")] | length')
+COMPLETE=$(cat "$META_SPEC_DIR/manifest.json" | jq '[.subSpecs[] | select(.phases.implement == "complete")] | length')
+TOTAL=$(cat "$META_SPEC_DIR/manifest.json" | jq '.subSpecs | length')
+```
+
+**Case A: All implementations complete**
 ```markdown
-## Implementation Blocked
+## All Implementations Complete! 🎉
 
-The next sub-spec(s) in the schedule are waiting for dependencies:
+All $TOTAL sub-specs have been implemented.
 
-| Sub-Spec | Waiting For | Status |
-|----------|-------------|--------|
+Run the final merge and integration steps as described in the schedule.
+```
+
+**Case B: No parallel tasks available (in-progress blocking)**
+```markdown
+## No Parallel Tasks Available
+
+**Status**: $COMPLETE of $TOTAL sub-specs complete, $IN_PROGRESS in progress.
+
+The next sub-spec(s) are blocked waiting for dependencies to complete:
+
+| Sub-Spec | Waiting For | Blocker Status |
+|----------|-------------|----------------|
 | 002-native-adapter | 001-parser | in-progress |
 | 003-web-adapter | 001-parser | in-progress |
 
+### What This Means
+
+All available parallel work is currently being executed. You cannot start another implementation until the in-progress work completes.
+
 ### Options
 
-1. **Wait**: Let the blocking sub-spec complete
-2. **Check status**: `.specify/scripts/bash/manifest.sh summary $META_SPEC_DIR`
-3. **Parallel work**: If you have multiple agents, another can work on the blocking sub-spec
+1. **Resume existing work**: Navigate to an in-progress worktree and run `/speckit.implement`:
+   ```bash
+   cd ../<project>-worktrees/<meta-spec-id>-<sub-spec-id>
+   # Then run /speckit.implement to resume
+   ```
 
-Current implementation in progress:
-- 001-parser (in worktree: ../iris-ornament-worktrees/001-html-renderer-001-parser)
+2. **Wait**: Let the in-progress implementation complete naturally
+
+3. **Check status**:
+   ```bash
+   .specify/scripts/bash/manifest.sh summary $META_SPEC_DIR
+   ```
+
+### Currently In Progress
 ```
+*List each in-progress sub-spec with its worktree path*
 
-### 5. Update Manifest to In-Progress
+**IMPORTANT**: `/speckit.implement-next` always starts a NEW sub-spec. To resume an existing in-progress implementation, navigate to its worktree and run `/speckit.implement` instead.
+
+### 5. Update Manifest to In-Progress (Atomic)
+
+Use the atomic manifest update script to safely update the phase:
 
 ```bash
-.specify/scripts/bash/manifest.sh update-phase "$META_SPEC_DIR" "$NEXT_ID" "implement" "in-progress"
+.specify/scripts/bash/manifest-update.sh "$META_SPEC_DIR" update-phase "$NEXT_ID" "implement" "in-progress"
 ```
+
+This script follows the **worktree→remote→meta-spec protocol**:
+1. Acquires file lock
+2. Updates the manifest in the worktree
+3. Commits with standardized message
+4. Pushes to the **worktree's remote branch**
+5. Merges the worktree branch into the **meta-spec branch** (in main worktree)
+6. Pushes the meta-spec branch to remote
+7. Releases lock
+
+This ensures manifest changes are always synced from worktree → remote → meta-spec branch.
 
 ### 6. Navigate to Worktree
 
@@ -137,10 +185,12 @@ npm test
 grep -r "eslint-disable\|@ts-ignore\|@ts-expect-error" src/
 ```
 
-### 10. Update Manifest to Complete
+### 10. Update Manifest to Complete (Atomic)
+
+Use the atomic manifest update script:
 
 ```bash
-.specify/scripts/bash/manifest.sh update-phase "$META_SPEC_DIR" "$NEXT_ID" "implement" "complete"
+.specify/scripts/bash/manifest-update.sh "$META_SPEC_DIR" update-phase "$NEXT_ID" "implement" "complete"
 ```
 
 ### 11. Commit and Push
@@ -199,19 +249,19 @@ All sub-specs have been implemented. Final steps:
 
 1. **Merge branches** (in order):
    ```bash
-   cd /path/to/iris-ornament
+   cd /path/to/<project>
    git checkout main
-   git merge 001-html-renderer-001-parser
-   git merge 001-html-renderer-002-native-adapter
-   git merge 001-html-renderer-003-web-adapter
-   git merge 001-html-renderer-004-core-component
+   git merge <meta-spec-id>-001-parser
+   git merge <meta-spec-id>-002-adapter-a
+   git merge <meta-spec-id>-003-adapter-b
+   git merge <meta-spec-id>-004-integration
    ```
 
 2. **Run integration tests**
 
 3. **Clean up worktrees**:
    ```bash
-   .specify/scripts/bash/worktree-remove.sh 001-html-renderer-001-parser
+   .specify/scripts/bash/worktree-remove.sh <meta-spec-id>-001-parser
    # ... repeat for each
    ```
 

@@ -61,13 +61,13 @@ OPTIONS:
 
 EXAMPLES:
   # Create a foundation sub-spec with no dependencies
-  ./create-sub-spec.sh --meta-spec specs/001-html-renderer --id 001-parser --title "Parser & Sanitizer"
+  ./create-sub-spec.sh --meta-spec specs/001-feature --id 001-parser --title "Parser & Sanitizer"
 
   # Create a sub-spec that depends on another
-  ./create-sub-spec.sh --meta-spec specs/001-html-renderer --id 002-native --title "Native Adapter" --depends 001-parser
+  ./create-sub-spec.sh --meta-spec specs/001-feature --id 002-adapter --title "Adapter" --depends 001-parser
 
   # Create a sub-spec with multiple dependencies
-  ./create-sub-spec.sh --meta-spec specs/001-html-renderer --id 004-core --title "Core Component" --depends "002-native,003-web"
+  ./create-sub-spec.sh --meta-spec specs/001-feature --id 004-integration --title "Integration" --depends "002-adapter,003-service"
 EOF
             exit 0
             ;;

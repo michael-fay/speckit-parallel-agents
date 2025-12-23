@@ -15,11 +15,80 @@ You **MUST** consider the user input before proceeding (if not empty).
 - `--sub-spec <id>`: Implement a specific sub-spec (requires --feature)
 - No arguments: Use branch-based detection (original behavior)
 
+## Sub-Spec/Worktree Mode
+
+**IMPORTANT**: When working in a meta-spec context with worktrees:
+
+1. **This command MUST be run from a worktree**, not the meta-spec branch
+2. If you're on the meta-spec branch (e.g., `001-feature`), use `/speckit.implement-next` instead
+3. When run from a sub-spec worktree (e.g., `001-feature-001-parser`):
+   - The command auto-detects the sub-spec context
+   - If implementation is already `in-progress` for this sub-spec, it **resumes** automatically
+   - No `--feature` or `--sub-spec` flags needed - context is derived from branch name
+
+### Auto-Resume Behavior
+
+When running from a worktree with `implement: in-progress` in the manifest:
+1. Skip the "mark as in-progress" step (already done)
+2. Load the tasks.md and find uncompleted tasks (those not marked `[X]`)
+3. Resume implementation from the first uncompleted task
+4. Continue with the normal implementation flow
+
 ## Outline
 
-1. Run `.specify/scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks` from repo root, adding `--feature <name>` and/or `--sub-spec <id>` flags if provided in arguments. Parse FEATURE_DIR and AVAILABLE_DOCS list. All paths must be absolute. For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
+### 0. Detect Context and Validate Location
 
-2. **Check checklists status** (if FEATURE_DIR/checklists/ exists):
+```bash
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+```
+
+**Check if on a sub-spec branch** (pattern: `###-meta-###-sub`):
+- If yes: Auto-detect META_SPEC_DIR and SUB_SPEC_ID from branch name
+- If no (on meta-spec or main branch): **ERROR** - Display message:
+  ```
+  Error: /speckit.implement must be run from a sub-spec worktree.
+
+  You are on branch: [branch name]
+
+  Options:
+  1. Use /speckit.implement-next to start the next scheduled sub-spec
+  2. Navigate to an existing worktree: cd ../<project>-worktrees/[sub-spec]
+  3. Use explicit flags: /speckit.implement --feature [name] --sub-spec [id]
+  ```
+
+**If auto-detected sub-spec, check manifest for current state**:
+```bash
+IMPL_STATUS=$(cat "$META_SPEC_DIR/manifest.json" | jq -r ".subSpecs[] | select(.id == \"$SUB_SPEC_ID\") | .phases.implement")
+```
+
+- If `in-progress`: **RESUME MODE** - Note this and continue to check-prerequisites
+- If `complete`: **ERROR** - "Implementation already complete for this sub-spec"
+- If `blocked` or `pending`: Check if ready (deps complete), then mark as in-progress using the manifest update protocol
+
+### Manifest Update Protocol
+
+When updating manifest state (marking as in-progress or complete), use the atomic manifest update script:
+
+```bash
+.specify/scripts/bash/manifest-update.sh "$META_SPEC_DIR" update-phase "$SUB_SPEC_ID" "implement" "in-progress"
+```
+
+This script follows the **worktree→remote→meta-spec protocol**:
+1. Acquires file lock to prevent race conditions
+2. Updates the manifest in the current worktree
+3. Commits with standardized message
+4. Pushes to the **worktree's remote branch** first
+5. Merges the worktree branch into the **meta-spec branch** (in main worktree)
+6. Pushes the meta-spec branch to remote
+7. Releases lock
+
+This ensures manifest changes flow: worktree → remote → meta-spec branch, keeping all worktrees and the meta-spec branch in sync.
+
+### 1. Run Prerequisites Check
+
+Run `.specify/scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks` from repo root, adding `--feature <name>` and/or `--sub-spec <id>` flags if provided in arguments. Parse FEATURE_DIR and AVAILABLE_DOCS list. All paths must be absolute. For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
+
+### 2. Check Checklists Status (if FEATURE_DIR/checklists/ exists)
    - Scan all checklist files in the checklists/ directory
    - For each checklist, count:
      - Total items: All lines matching `- [ ]` or `- [X]` or `- [x]`
@@ -136,5 +205,13 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Validate that tests pass and coverage meets requirements
    - Confirm the implementation follows the technical plan
    - Report final status with summary of completed work
+
+10. Mark Implementation Complete:
+    - After all tasks pass and quality checks succeed, update the manifest:
+      ```bash
+      .specify/scripts/bash/manifest-update.sh "$META_SPEC_DIR" update-phase "$SUB_SPEC_ID" "implement" "complete"
+      ```
+    - This follows the worktree→remote→meta-spec protocol to sync all branches
+    - The update will automatically unblock dependent sub-specs
 
 Note: This command assumes a complete task breakdown exists in tasks.md. If tasks are incomplete or missing, suggest running `/speckit.tasks` first to regenerate the task list.

@@ -48,7 +48,7 @@ Read the manifest to get the worktree path for this sub-spec:
 
 ```bash
 # The worktree was created during breakdown
-cd "../iris-ornament-worktrees/[meta-spec-id]-[sub-spec-id]"
+cd "../<project>-worktrees/[meta-spec-id]-[sub-spec-id]"
 ```
 
 ### 5. Read Sub-Spec Context

@@ -64,16 +64,18 @@ For complex features requiring parallel development:
 /speckit.tasks-all      → Parallel: generate all sub-specs
    or -next             → Sequential: one at a time
         ↓
-/speckit.schedule       → REQUIRED: Human approves execution order
+/speckit.schedule       → REQUIRED: Human approves execution order + syncs worktrees
         ↓
-/speckit.implement-next → Implements according to schedule
+/speckit.implement-next → Starts next scheduled sub-spec (from meta-spec branch)
+        ↓
+/speckit.implement      → Resumes in-progress work (from worktree)
 ```
 
 ### Feature Branch Pattern
 
-- **Simple features**: `###-feature-name` (e.g., `001-html-parser`)
-- **Meta-spec (complex)**: `###-feature-name` (e.g., `001-html-renderer`)
-- **Sub-specs**: `###-feature-name-###-sub-spec` (e.g., `001-html-renderer-001-parser`)
+- **Simple features**: `###-feature-name` (e.g., `001-parser`)
+- **Meta-spec (complex)**: `###-feature-name` (e.g., `001-feature`)
+- **Sub-specs**: `###-feature-name-###-sub-spec` (e.g., `001-feature-001-parser`)
 
 ## Meta-Spec Architecture
 
@@ -124,8 +126,22 @@ Complex features are decomposed into sub-specs with explicit dependencies.
 | `.specify/scripts/bash/worktree-create.sh <branch>` | Create a worktree |
 | `.specify/scripts/bash/worktree-list.sh` | List active worktrees |
 | `.specify/scripts/bash/worktree-remove.sh <branch>` | Remove a worktree |
-| `.specify/scripts/bash/worktree-sync.sh` | Sync with main |
+| `.specify/scripts/bash/worktree-sync.sh --meta-spec <dir>` | Sync worktrees with meta-spec branch |
 | `.specify/scripts/bash/manifest.sh summary <dir>` | Show manifest status |
+| `.specify/scripts/bash/manifest-update.sh <dir> <cmd>` | Atomic manifest updates (fetch→commit→push) |
+
+## Implementation Commands
+
+| Command | Run From | Behavior |
+|---------|----------|----------|
+| `/speckit.implement-next` | Meta-spec branch | Starts the NEXT available sub-spec |
+| `/speckit.implement` | Sub-spec worktree | Resumes in-progress implementation |
+
+**Important**:
+- `implement-next` always starts fresh - use when beginning new work
+- `implement` auto-resumes - use when returning to in-progress work
+- Never run `implement` from the meta-spec branch
+- If no parallel tasks available, `implement-next` will error with guidance
 
 ### Agent Isolation Rules
 

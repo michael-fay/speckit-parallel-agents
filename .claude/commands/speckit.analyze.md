@@ -42,20 +42,21 @@ Extract `--feature`, `--sub-spec`, and `--all` flags from `$ARGUMENTS` if presen
 **Build check-prerequisites command:**
 
 ```bash
-# Base command with optional --feature and --sub-spec flags
-CMD=".specify/scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks"
+# Build command as an array to avoid eval security issues
+CMD=(.specify/scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks)
 
 # Add feature flag if specified
 if [ -n "$FEATURE" ]; then
-    CMD="$CMD --feature $FEATURE"
+    CMD+=(--feature "$FEATURE")
 fi
 
 # Add sub-spec flag if specified
 if [ -n "$SUB_SPEC" ]; then
-    CMD="$CMD --sub-spec $SUB_SPEC"
+    CMD+=(--sub-spec "$SUB_SPEC")
 fi
 
-eval "$CMD"
+# Execute command array directly
+"${CMD[@]}"
 ```
 
 Parse the JSON output for context detection:
@@ -80,11 +81,13 @@ For **meta-spec aggregate** (`--all`):
 Abort with an error message if any required file is missing (instruct the user to run missing prerequisite command).
 For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
 
-### 2. Load Artifacts (Progressive Disclosure)
+### 2. Load Artifacts (Context-Aware Loading)
+
+**CRITICAL**: For meta-spec aggregate analysis (`--all`), DO NOT load all sub-spec artifacts directly. Instead, use the Task tool to spawn parallel agents (see Step 2B below).
+
+#### 2A. For Simple Feature or Sub-Spec Context
 
 Load only the minimal necessary context from each artifact:
-
-#### For Simple Feature or Sub-Spec Context
 
 **From spec.md:**
 
@@ -113,7 +116,15 @@ Load only the minimal necessary context from each artifact:
 
 - Load `.specify/memory/constitution.md` for principle validation
 
-#### For Meta-Spec Aggregate Context (`--all`)
+**Then continue to Step 3.**
+
+#### 2B. For Meta-Spec Aggregate Context (`--all`) - PARALLEL AGENT WORKFLOW
+
+**DO NOT load sub-spec artifacts directly.** Instead, use the Task tool to analyze each sub-spec in parallel.
+
+**Step 2B.1: Load Meta-Spec Level Artifacts Only**
+
+Load only these lightweight files for cross-sub-spec validation:
 
 **From user-story.md:**
 
@@ -133,15 +144,112 @@ Load only the minimal necessary context from each artifact:
 - Dependency graph
 - Schedule (if approved)
 
-**From each sub-spec (iterate):**
+**Step 2B.2: Query Sub-Specs with Tasks Complete**
 
-Load the same artifacts as simple feature (spec.md, plan.md, tasks.md) for each sub-spec directory.
+Read the manifest.json and identify sub-specs where `phases.tasks.status === "complete"`:
 
-**From constitution:**
+```bash
+# Read manifest and extract sub-spec IDs with tasks complete
+jq -r '.subSpecs[] | select(.phases.tasks.status == "complete") | .id' "$META_SPEC_DIR/manifest.json"
+```
 
-- Load `.specify/memory/constitution.md` for principle validation
+Alternatively, use the summary command for a quick overview:
 
-### 3. Build Semantic Models
+```bash
+.specify/scripts/bash/manifest.sh summary "$META_SPEC_DIR"
+```
+
+**Step 2B.3: Confirm with User**
+
+Display the sub-specs to be analyzed:
+
+```markdown
+## Ready for Parallel Analysis
+
+The following sub-specs will be analyzed:
+
+| ID | Title | Status |
+|----|-------|--------|
+| 001-parser | Parser & Sanitizer | tasks complete |
+| 002-native-adapter | Native Renderer | tasks complete |
+
+**Parallel agents to spawn**: N
+
+Proceed with parallel analysis?
+```
+
+**Step 2B.4: Spawn Parallel Agents**
+
+Use the Task tool with **multiple calls in a single message** to analyze each sub-spec concurrently:
+
+```text
+For each sub-spec, spawn a Task with subagent_type="general-purpose":
+
+"Analyze sub-spec [ID] for meta-spec [META_SPEC_NAME].
+
+You are performing a focused analysis of a single sub-spec. Do NOT use --all flag.
+
+1. Read the constitution: .specify/memory/constitution.md
+2. Read spec: specs/[META_SPEC]/[SUB_SPEC_ID]/spec.md
+3. Read plan: specs/[META_SPEC]/[SUB_SPEC_ID]/plan.md
+4. Read tasks: specs/[META_SPEC]/[SUB_SPEC_ID]/tasks.md
+
+Perform the following analysis passes:
+- Duplication detection
+- Ambiguity detection (vague adjectives, placeholders)
+- Underspecification (missing acceptance criteria, undefined references)
+- Constitution alignment (MUST principles)
+- Coverage gaps (requirements without tasks, tasks without requirements)
+- Inconsistency (terminology drift, contradictions)
+
+Return a structured JSON report:
+{
+  \"subSpecId\": \"[ID]\",
+  \"metrics\": {
+    \"totalRequirements\": N,
+    \"totalTasks\": N,
+    \"coveragePercent\": N,
+    \"ambiguityCount\": N,
+    \"duplicationCount\": N
+  },
+  \"issues\": [
+    {
+      \"id\": \"A1\",
+      \"category\": \"Duplication|Ambiguity|Underspecification|Constitution|Coverage|Inconsistency\",
+      \"severity\": \"CRITICAL|HIGH|MEDIUM|LOW\",
+      \"location\": \"file.md:L123\",
+      \"summary\": \"Brief description\",
+      \"recommendation\": \"How to fix\"
+    }
+  ],
+  \"criticalCount\": N,
+  \"highCount\": N,
+  \"mediumCount\": N,
+  \"lowCount\": N
+}
+
+Limit to 15 findings per sub-spec. Focus on CRITICAL and HIGH severity first."
+```
+
+**Step 2B.5: Collect Results**
+
+Wait for all parallel agents to complete. Parse JSON reports from each.
+
+**Step 2B.6: Cross-Sub-Spec Analysis**
+
+With the collected individual reports AND the meta-spec level artifacts (user-story.md, breakdown.md), perform cross-sub-spec checks:
+
+- **Dependency alignment**: Do task dependencies match breakdown.md declarations?
+- **Interface contracts**: Are shared types/APIs consistent across sub-specs?
+- **Scope leakage**: Does any sub-spec implement another's scope?
+- **Terminology consistency**: Same concepts named consistently?
+- **User story coverage**: All acceptance criteria mapped to sub-spec requirements?
+
+**Then skip to Step 6 to produce the aggregate report.**
+
+### 3. Build Semantic Models (Simple Feature/Sub-Spec Only)
+
+**Note**: This step is for simple feature or individual sub-spec analysis only. For `--all` mode, the parallel agents handle this internally and you skip to Step 6 after collecting results.
 
 Create internal representations (do not include raw artifacts in output):
 
@@ -150,7 +258,9 @@ Create internal representations (do not include raw artifacts in output):
 - **Task coverage mapping**: Map each task to one or more requirements or stories (inference by keyword / explicit reference patterns like IDs or key phrases)
 - **Constitution rule set**: Extract principle names and MUST/SHOULD normative statements
 
-### 4. Detection Passes (Token-Efficient Analysis)
+### 4. Detection Passes (Simple Feature/Sub-Spec Only)
+
+**Note**: For `--all` mode, detection passes A-F are performed by parallel agents. Only Step 4G (Cross-Sub-Spec Consistency) is performed after collecting agent results.
 
 Focus on high-signal findings. Limit to 50 findings total; aggregate remainder in overflow summary.
 
@@ -188,9 +298,9 @@ Focus on high-signal findings. Limit to 50 findings total; aggregate remainder i
 - Task ordering contradictions (e.g., integration tasks before foundational setup tasks without dependency note)
 - Conflicting requirements (e.g., one requires Next.js while other specifies Vue)
 
-#### G. Meta-Spec Cross-Consistency (for `--all` mode only)
+#### G. Meta-Spec Cross-Consistency (`--all` mode - performed after parallel agents complete)
 
-When analyzing a meta-spec with multiple sub-specs, also check:
+When analyzing a meta-spec with multiple sub-specs, this is the **only Step 4 action** you perform directly (after collecting parallel agent results). Check:
 
 - **Dependency alignment**: Sub-spec declares dependency on another, but tasks don't reflect integration points
 - **Interface contracts**: Data types/APIs defined in one sub-spec match expected inputs in dependent sub-specs
@@ -201,6 +311,8 @@ When analyzing a meta-spec with multiple sub-specs, also check:
 - **Manifest accuracy**: Phase status in manifest.json matches actual artifact existence
 
 ### 5. Severity Assignment
+
+**Note**: For `--all` mode, parallel agents assign severity to individual sub-spec findings. You only assign severity to cross-sub-spec issues (Step 4G findings).
 
 Use this heuristic to prioritize findings:
 
@@ -213,7 +325,7 @@ Use this heuristic to prioritize findings:
 
 Output a Markdown report (no file writes) with the following structure:
 
-#### For Simple Feature or Sub-Spec
+**For Simple Feature or Sub-Spec**
 
 ## Specification Analysis Report
 
@@ -241,7 +353,7 @@ Output a Markdown report (no file writes) with the following structure:
 - Duplication Count
 - Critical Issues Count
 
-#### For Meta-Spec Aggregate (`--all`)
+**For Meta-Spec Aggregate (`--all`)**
 
 ## Meta-Spec Analysis Report
 
@@ -283,13 +395,13 @@ Output a Markdown report (no file writes) with the following structure:
 
 At end of report, output a concise Next Actions block:
 
-#### For Simple Feature or Sub-Spec
+**For Simple Feature or Sub-Spec**
 
 - If CRITICAL issues exist: Recommend resolving before `/speckit.implement`
 - If only LOW/MEDIUM: User may proceed, but provide improvement suggestions
 - Provide explicit command suggestions: e.g., "Run /speckit.specify with refinement", "Run /speckit.plan to adjust architecture", "Manually edit tasks.md to add coverage for 'performance-metrics'"
 
-#### For Meta-Spec Aggregate
+**For Meta-Spec Aggregate**
 
 - If CRITICAL cross-sub-spec issues: Recommend resolving before `/speckit.schedule` or `/speckit.implement-next`
 - If sub-spec-specific CRITICAL issues: Recommend which sub-specs need attention

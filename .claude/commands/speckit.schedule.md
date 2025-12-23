@@ -195,7 +195,22 @@ EOF
 .specify/scripts/bash/manifest.sh mark-scheduled "$META_SPEC_DIR" "$SCHEDULE_JSON"
 ```
 
-### 9. Unblock Implementation
+### 9. Sync All Worktrees
+
+**IMPORTANT**: Before implementation begins, sync all worktrees with the meta-spec branch to ensure they have the latest spec/plan/tasks files:
+
+```bash
+.specify/scripts/bash/worktree-sync.sh --meta-spec "$META_SPEC_DIR"
+```
+
+This rebases all sub-spec worktree branches onto the meta-spec branch, giving them:
+- The latest spec.md, plan.md, tasks.md files
+- Updated scripts in .specify/
+- Any other changes made during the planning phases
+
+If any worktree has uncommitted changes, the sync will skip it with a warning. Ensure all worktrees are clean before syncing.
+
+### 10. Unblock Implementation
 
 Update all sub-specs from `implement: blocked` to `implement: pending`:
 
@@ -204,7 +219,7 @@ This is done atomically by the `mark-scheduled` command, which:
 2. Stores the schedule JSON
 3. Updates sub-spec implement phases based on dependencies
 
-### 10. Report Completion
+### 11. Report Completion
 
 ```markdown
 ## Schedule Approved
@@ -239,10 +254,10 @@ Implementation is now unblocked. You can:
 
 | Sub-Spec | Worktree Path |
 |----------|---------------|
-| 001-parser | ../iris-ornament-worktrees/001-html-renderer-001-parser |
-| 002-native-adapter | ../iris-ornament-worktrees/001-html-renderer-002-native-adapter |
-| 003-web-adapter | ../iris-ornament-worktrees/001-html-renderer-003-web-adapter |
-| 004-core-component | ../iris-ornament-worktrees/001-html-renderer-004-core-component |
+| 001-parser | ../<project>-worktrees/<meta-spec-id>-001-parser |
+| 002-adapter-a | ../<project>-worktrees/<meta-spec-id>-002-adapter-a |
+| 003-adapter-b | ../<project>-worktrees/<meta-spec-id>-003-adapter-b |
+| 004-integration | ../<project>-worktrees/<meta-spec-id>-004-integration |
 ```
 
 ## Error Handling

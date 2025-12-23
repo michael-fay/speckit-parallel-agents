@@ -61,15 +61,15 @@ Use the Task tool with multiple calls in a single message:
 
 ```
 For sub-spec 001-parser:
-"You are planning sub-spec 001-parser in the iris-ornament project.
+"You are planning sub-spec 001-parser in the <project> project.
 
-1. Navigate to worktree: ../iris-ornament-worktrees/001-html-renderer-001-parser
-2. Read spec: specs/001-html-renderer/001-parser/spec.md
+1. Navigate to worktree: ../<project>-worktrees/<meta-spec-id>-001-parser
+2. Read spec: specs/<meta-spec-id>/001-parser/spec.md
 3. Read constitution: .specify/docs/CONSTITUTION-REFERENCE.md
 4. Read plan template: .specify/templates/plan-template.md
-5. Generate plan.md at: specs/001-html-renderer/001-parser/plan.md
+5. Generate plan.md at: specs/<meta-spec-id>/001-parser/plan.md
 6. Create research.md if research needed
-7. Update manifest: .specify/scripts/bash/manifest.sh update-phase specs/001-html-renderer 001-parser plan complete
+7. Update manifest: .specify/scripts/bash/manifest.sh update-phase specs/<meta-spec-id> 001-parser plan complete
 
 Report when complete."
 ```

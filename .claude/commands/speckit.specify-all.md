@@ -82,14 +82,14 @@ Example Task prompts:
 
 ```
 For sub-spec 001-parser:
-"You are specifying sub-spec 001-parser in the iris-ornament project.
+"You are specifying sub-spec 001-parser in the <project> project.
 
-1. Navigate to worktree: ../iris-ornament-worktrees/001-html-renderer-001-parser
-2. Read context from: specs/001-html-renderer/breakdown.md (section for 001-parser)
+1. Navigate to worktree: ../<project>-worktrees/<meta-spec-id>-001-parser
+2. Read context from: specs/<meta-spec-id>/breakdown.md (section for 001-parser)
 3. Read constitution: .specify/docs/CONSTITUTION-REFERENCE.md
-4. Generate spec.md at: specs/001-html-renderer/001-parser/spec.md
+4. Generate spec.md at: specs/<meta-spec-id>/001-parser/spec.md
 5. Run validation and iterate until passing
-6. Update manifest: .specify/scripts/bash/manifest.sh update-phase specs/001-html-renderer 001-parser specify complete
+6. Update manifest: .specify/scripts/bash/manifest.sh update-phase specs/<meta-spec-id> 001-parser specify complete
 
 Report when complete with a summary of the specification."
 ```
@@ -119,9 +119,9 @@ After all agents complete:
 
 | ID | Status | Spec File |
 |----|--------|-----------|
-| 001-parser | Complete | specs/001-html-renderer/001-parser/spec.md |
-| 002-native-adapter | Complete | specs/001-html-renderer/002-native-adapter/spec.md |
-| 003-web-adapter | Complete | specs/001-html-renderer/003-web-adapter/spec.md |
+| 001-parser | Complete | specs/<meta-spec-id>/001-parser/spec.md |
+| 002-adapter-a | Complete | specs/<meta-spec-id>/002-adapter-a/spec.md |
+| 003-adapter-b | Complete | specs/<meta-spec-id>/003-adapter-b/spec.md |
 
 ### Next Steps
 - Run `/speckit.plan-all` to plan all specified sub-specs in parallel

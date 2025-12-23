@@ -97,9 +97,9 @@ my-project-worktrees/                   # Worktree container (sibling dir)
 
 | Type | Pattern | Example |
 |------|---------|---------|
-| Simple feature | `###-name` | `001-html-parser` |
-| Meta-spec | `###-name` | `001-html-renderer` |
-| Sub-spec | `###-meta-###-sub` | `001-html-renderer-001-parser` |
+| Simple feature | `###-name` | `001-parser` |
+| Meta-spec | `###-name` | `001-feature` |
+| Sub-spec | `###-meta-###-sub` | `001-feature-001-parser` |
 
 ## Scripts
 

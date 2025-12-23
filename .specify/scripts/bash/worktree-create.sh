@@ -4,7 +4,7 @@
 #
 # Usage: worktree-create.sh <branch-name> [--from <base-branch>]
 #
-# Creates a worktree in ../iris-ornament-worktrees/<branch-name>/
+# Creates a worktree in ../<project>-worktrees/<branch-name>/
 # If the branch doesn't exist, it will be created from main (or specified base)
 
 set -e
